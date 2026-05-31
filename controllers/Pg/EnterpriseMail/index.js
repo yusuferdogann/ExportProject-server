@@ -51,6 +51,8 @@ const listAccounts = asyncErrorWrapper(async (req, res) => {
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
   });
 
+  const oauth = mailConfig.getOAuthPublicConfig();
+
   res.json({
     success: true,
     data: accounts.map(shapeAccount),
@@ -59,7 +61,13 @@ const listAccounts = asyncErrorWrapper(async (req, res) => {
       gmailOAuthReady: providerConfigured("gmail"),
       microsoftOAuthReady: providerConfigured("microsoft"),
       s3Ready: Boolean(mailConfig.s3.bucket),
-      gmailRedirectUri: mailConfig.gmail.redirectUri || null,
+      gmailRedirectUri: oauth.gmailRedirectUri || null,
+      microsoftRedirectUri: oauth.microsoftRedirectUri || null,
+      appPublicUrl: oauth.appPublicUrl || null,
+      oauthEnvironment: oauth.oauthEnvironment,
+      mailOAuthEnv: oauth.mailOAuthEnv,
+      gmailPubsubConfigured: oauth.gmailPubsubConfigured,
+      nodeEnv: oauth.nodeEnv,
     },
   });
 });

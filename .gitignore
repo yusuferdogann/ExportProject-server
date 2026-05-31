@@ -1,11 +1,1 @@
-node_modules/
-.env
-.env.local
-.env.*.local
-!.env.example
-*.log
-npm-debug.log*
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
+/node_modules/

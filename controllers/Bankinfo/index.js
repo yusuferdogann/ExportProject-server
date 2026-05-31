@@ -1,5 +1,5 @@
 const asyncErrorWrapper = require("express-async-handler");
-const Bankinfo = require("../../models/Bankinfo");
+const Bankinfo = require("../../models/BankInfo");
 
 const getBanks = asyncErrorWrapper(async (req, res) => {
   const { companyId } = req.user;

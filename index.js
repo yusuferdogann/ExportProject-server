@@ -29,7 +29,7 @@ const userRoutes = require("./routes/User");
 const workerRoutes = require("./routes/Worker");
 const productRoutes = require("./routes/Product");
 const productDiscountRoutes = require("./routes/ProductDiscount");
-const bankRoutes = require("./routes/Bankinfo");
+const bankRoutes = require("./routes/BankInfo");
 const authorizationRoutes = require("./routes/Authorization");
 const approvalRoutes = require("./routes/Approval");
 const documentsRoutes = require("./routes/Documents");
@@ -88,6 +88,8 @@ const app = express();
 const ALLOWED_ORIGIN_PATTERNS = [
   /^http:\/\/([a-z0-9-]+\.)?localhost:5173$/,
   /^http:\/\/127\.0\.0\.1:5173$/,
+  /^https:\/\/app\.ihracattakip\.com$/,
+  /^http:\/\/app\.ihracattakip\.com$/,
   /^https:\/\/[a-z0-9-]+\.ngrok-free\.app$/,
   /^https:\/\/[a-z0-9-]+\.ngrok-free\.dev$/,
   /^https:\/\/[a-z0-9-]+\.loca\.lt$/,
