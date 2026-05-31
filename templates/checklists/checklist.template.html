@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+<meta charset="UTF-8">
+<title>{{title}}</title>
+<style>
+body{ margin:0; background:#fff; font-family:Arial, Helvetica, sans-serif; font-size:11px; }
+.page{ width:900px; margin:0 auto; padding:30px 50px; }
+.top{ display:flex; justify-content:space-between; align-items:flex-start; }
+.logo-area{ display:flex; align-items:center; gap:15px; }
+.logo{ width:50px; height:50px; background:#e5e5e5; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; }
+.company-info{ text-align:right; font-size:11px; line-height:1.5; }
+.company-name{ font-weight:bold; font-size:13px; }
+.title-box{ background:#e5e5e5; padding:12px 20px; margin:25px 0; text-align:center; }
+.title-box h1{ margin:0; font-size:18px; letter-spacing:1px; }
+.main-grid{ display:flex; justify-content:space-between; gap:30px; margin-top:20px; }
+.buyer-section{ flex:1; }
+.buyer-label{ background:#e5e5e5; padding:8px 12px; font-weight:bold; font-size:12px; }
+.buyer-content{ padding:12px; border:1px solid #000; border-top:none; font-size:11px; line-height:1.6; }
+.doc-meta{ width:280px; }
+.doc-meta table{ width:100%; border-collapse:collapse; font-size:11px; }
+.doc-meta th{ background:#e5e5e5; padding:8px; text-align:left; font-weight:bold; border:1px solid #000; }
+.doc-meta td{ padding:8px; border:1px solid #000; }
+.prod-table{ width:100%; margin-top:25px; border-collapse:collapse; font-size:11px; }
+.prod-table th{ background:#e5e5e5; padding:8px 6px; text-align:left; border:1px solid #000; }
+.prod-table th:nth-child(1){ width:35px; text-align:center; }
+.prod-table th:nth-child(3), .prod-table th:nth-child(4), .prod-table th:nth-child(5), .prod-table th:nth-child(6){ text-align:center; }
+.prod-table td{ padding:8px 6px; border:1px solid #000; }
+.prod-table td:nth-child(1), .prod-table td:nth-child(3), .prod-table td:nth-child(4){ text-align:center; }
+.prod-table td:nth-child(5), .prod-table td:nth-child(6){ text-align:right; }
+.grand-total{ background:#e5e5e5; padding:10px 12px; font-weight:bold; border:1px solid #000; border-top:none; }
+.summary-table{ width:100%; margin-top:15px; border-collapse:collapse; font-size:11px; }
+.summary-table td{ padding:8px; border:1px solid #000; }
+.origin-text{ text-align:center; padding:12px; margin-top:15px; font-size:11px; border:1px solid #000; }
+.footer{ border:1px solid #000; min-height:100px; margin-top:30px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="top">
+    <div class="logo-area">
+        <div class="logo">SEYMOL<br>ORIGINAL</div>
+    </div>
+    <div class="company-info">
+        <div class="company-name">SEYMOT OTOMOTIV IC VE DIS TIC. SAN. LTD. STI.</div>
+        <div>Buyukkayacik Mh. 506 Nolu Sk. No: 4/1 Selcuklu Konya/Turkiye</div>
+        <div>Tel: +90 332 342 49 27 Mail: export@doganpiston.com.tr</div>
+        <div>Tax ID: 7671211004 | Tax Office: SELCUK</div>
+        <div>https://doganpiston.com/en</div>
+    </div>
+</div>
+
+<div class="title-box"><h1>{{title}}</h1></div>
+
+<div class="main-grid">
+    <div class="buyer-section">
+        <div class="buyer-label">{{labels.buyer}}</div>
+        <div class="buyer-content">
+            <strong>{{customer.firmName}}</strong><br>
+            {{customer.address}}<br>
+            {{customer.mail}}<br>
+            {{customer.phone}}
+        </div>
+    </div>
+    <div class="doc-meta">
+        <table>
+            <tr><th>{{labels.invoiceNo}}</th><td>{{invoiceNumber}}</td></tr>
+            <tr><th>{{labels.date}}</th><td>{{formattedDate}}</td></tr>
+            <tr><th>{{labels.truckPlate}}</th><td>{{truckPlate}}</td></tr>
+        </table>
+    </div>
+</div>
+
+<table class="prod-table">
+<thead>
+<tr>
+    <th>{{labels.no}}</th>
+    <th>{{labels.productDesc}}</th>
+    <th>{{labels.masterPack}}</th>
+    <th>{{labels.qty}}</th>
+    <th>{{labels.netWeight}}</th>
+    <th>{{labels.grossWeight}}</th>
+</tr>
+</thead>
+<tbody>
+{{#each products}}
+<tr>
+    <td>{{addOne @index}}</td>
+    <td>{{name}}</td>
+    <td>{{master}}</td>
+    <td>{{qty}}</td>
+    <td>{{net}}</td>
+    <td>{{gross}}</td>
+</tr>
+{{/each}}
+<tr class="grand-total">
+    <td>1</td>
+    <td>GRAND TOTAL</td>
+    <td>{{totalMasterPack}}</td>
+    <td>{{totalQty}}</td>
+    <td>{{totalNetWeight}}</td>
+    <td>{{totalGrossWeight}}</td>
+</tr>
+</tbody>
+</table>
+
+<table class="summary-table">
+<tr><td>{{labels.gtipNo}}</td><td>{{gtipCode}}</td></tr>
+<tr><td>{{labels.totalMasterPack}}</td><td>{{totalMasterPack}}</td></tr>
+<tr><td>{{labels.netKgs}}</td><td>{{totalNetWeight}} {{labels.kgs}}</td></tr>
+<tr><td>{{labels.grossKgs}}</td><td>{{totalGrossWeight}} {{labels.kgs}}</td></tr>
+<tr><td>{{labels.totalKgs}}</td><td>{{totalGrossWeight}} {{labels.kgs}}</td></tr>
+</table>
+
+<div class="origin-text">{{labels.origin}}</div>
+
+<div class="footer"></div>
+
+</div>
+</body>
+</html>

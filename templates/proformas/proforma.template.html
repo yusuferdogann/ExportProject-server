@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proforma Invoice</title>
+<style>
+body{ margin:0; background:#fff; font-family:Arial, Helvetica, sans-serif; font-size:11px; }
+.page{ width:900px; margin:0 auto; padding:30px 50px; }
+.header{ text-align:center; margin-bottom:20px; }
+.company-name{ font-weight:bold; font-size:13px; margin-bottom:8px; text-transform:uppercase; }
+.company-address{ font-size:11px; line-height:1.5; }
+.company-contact{ font-size:11px; margin-top:6px; }
+.title-box{ background:#e5e5e5; padding:12px 20px; margin:25px 0; text-align:center; }
+.title-box h1{ margin:0; font-size:18px; letter-spacing:1px; }
+.main-grid{ display:flex; justify-content:space-between; gap:30px; margin-top:20px; }
+.buyer-section{ flex:1; }
+.buyer-label{ background:#e5e5e5; padding:8px 12px; font-weight:bold; font-size:12px; }
+.buyer-content{ padding:12px; border:1px solid #000; border-top:none; font-size:11px; line-height:1.6; }
+.proforma-meta{ width:260px; }
+.proforma-meta table{ width:100%; border-collapse:collapse; font-size:11px; }
+.proforma-meta th{ background:#e5e5e5; padding:8px; text-align:left; font-weight:bold; border:1px solid #000; }
+.proforma-meta td{ padding:8px; border:1px solid #000; }
+.prod-table{ width:100%; margin-top:25px; border-collapse:collapse; font-size:11px; }
+.prod-table th{ background:#e5e5e5; padding:8px 6px; text-align:left; border:1px solid #000; }
+.prod-table th:nth-child(1){ width:35px; text-align:center; }
+.prod-table th:nth-child(3), .prod-table th:nth-child(5), .prod-table th:nth-child(6){ text-align:right; }
+.prod-table td{ padding:8px 6px; border:1px solid #000; }
+.prod-table td:nth-child(1), .prod-table td:nth-child(3){ text-align:center; }
+.prod-table td:nth-child(4), .prod-table td:nth-child(5), .prod-table td:nth-child(6){ text-align:right; }
+.grand-total{ background:#e5e5e5; padding:12px 20px; margin-top:0; display:flex; justify-content:space-between; align-items:center; font-weight:bold; font-size:13px; border:1px solid #000; }
+.bottom-section{ margin-top:25px; display:flex; justify-content:space-between; gap:30px; }
+.banking{ flex:1; padding:12px; border:1px solid #000; }
+.banking-title{ font-weight:bold; margin-bottom:8px; }
+.banking-content{ font-size:11px; line-height:1.6; }
+.delivery-block{ width:300px; padding:12px; border:1px solid #000; font-size:11px; }
+.delivery-block div{ margin-bottom:6px; }
+.packing-info{ margin-top:12px; }
+.packing-title{ font-weight:bold; margin-bottom:4px; }
+.notes-section{ margin-top:15px; padding:12px; border:1px solid #000; }
+.notes-title{ font-weight:bold; margin-bottom:8px; }
+.footer{ margin-top:40px; border-top:1px solid #000; padding-top:20px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<div class="header">
+    <div class="company-name">{{companyName}}</div>
+    <div class="company-address">{{companyAddress}}</div>
+    <div class="company-contact">
+        Tel: {{companyPhone}} | Mail: {{companyEmail}} | Tax ID: {{companyTaxId}} | Tax Office: {{companyTaxOffice}}<br>
+        {{companyWebsite}}
+    </div>
+</div>
+
+<div class="title-box">
+    <h1>PROFORMA INVOICE</h1>
+</div>
+
+<div class="main-grid">
+    <div class="buyer-section">
+        <div class="buyer-label">BUYER / CLIENT</div>
+        <div class="buyer-content">
+            <strong>{{customer.firmName}}</strong><br>
+            {{customer.address}}<br>
+            {{#if customer.personName}}Contact: {{customer.personName}}<br>{{/if}}
+            {{#if customer.code}}Tax ID: {{customer.code}}<br>{{/if}}
+            {{#if customer.mail}}{{customer.mail}}{{/if}}
+        </div>
+    </div>
+    <div class="proforma-meta">
+        <table>
+            <tr><th>Proforma Invoice No</th><td>{{quoteNumber}}</td></tr>
+            <tr><th>Date</th><td>{{formattedDate}}</td></tr>
+            <tr><th>Country Of Destination</th><td>{{destinationCountry}}</td></tr>
+        </table>
+    </div>
+</div>
+
+<table class="prod-table">
+<thead>
+<tr>
+    <th>No</th>
+    <th>Description Of Products</th>
+    <th>Quantity</th>
+    <th>Unit</th>
+    <th>Unit Price</th>
+    <th>Total</th>
+</tr>
+</thead>
+<tbody>
+{{#each products}}
+<tr>
+    <td>{{addOne @index}}</td>
+    <td>{{name}}</td>
+    <td>{{quantity}}</td>
+    <td>{{unit}}</td>
+    <td>€ {{unitPrice}}</td>
+    <td>€ {{total}}</td>
+</tr>
+{{/each}}
+</tbody>
+</table>
+
+<div class="grand-total">
+    <span>GRAND TOTAL</span>
+    <span>{{totalQuantity}} {{totalUnit}} &nbsp;&nbsp; € {{grandTotal}}</span>
+</div>
+
+<div class="bottom-section">
+    <div class="banking">
+        <div class="banking-title">BANKING DETAILS:</div>
+        <div class="banking-content">
+            Beneficiary: {{companyName}}<br>
+            Bank Name: {{bankInfo.name}}<br>
+            Branch: {{bankInfo.branch}}<br>
+            Swift Code: {{bankInfo.swiftCode}}<br>
+            IBAN For EUR: {{bankInfo.iban}}
+        </div>
+    </div>
+    <div class="delivery-block">
+        <div><strong>DELIVERY TERM:</strong> {{deliveryTerm}}</div>
+        <div><strong>PAYMENT TERM:</strong> {{paymentTerm}}</div>
+        <div><strong>ORIGIN:</strong> {{origin}}</div>
+        <div><strong>WE SENT BY:</strong> {{weSentBy}}</div>
+        <div><strong>HS CODE:</strong> {{hsCode}}</div>
+        <div class="packing-info">
+            <div class="packing-title">PACKING INFORMATION:</div>
+            <div>Net Weight: {{totalNetWeight}} Kg</div>
+            <div>Gross Weight: {{totalGrossWeight}} Kg</div>
+            <div>Number Of Master Pack: {{totalPackageCount}} (PALLET)</div>
+        </div>
+    </div>
+</div>
+
+<div class="notes-section">
+    <div class="notes-title">NOTES:</div>
+    <div>{{notes}}</div>
+</div>
+
+<div class="footer"></div>
+
+</div>
+
+</body>
+</html>

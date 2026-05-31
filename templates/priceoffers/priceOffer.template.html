@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Price Offer</title>
+<style>
+body{ margin:0; background:#fff; font-family:Arial, Helvetica, sans-serif; font-size:11px; }
+.page{ width:900px; margin:0 auto; padding:30px 50px; }
+.top{ display:flex; justify-content:space-between; align-items:flex-start; }
+.logo-area{ display:flex; align-items:center; gap:15px; }
+.logo{ width:50px; height:50px; background:#e5e5e5; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; }
+.company-info{ text-align:right; font-size:11px; line-height:1.5; }
+.company-name{ font-weight:bold; font-size:13px; }
+.title-box{ background:#e5e5e5; padding:12px 20px; margin:25px 0; text-align:center; }
+.title-box h1{ margin:0; font-size:18px; letter-spacing:1px; }
+.main-grid{ display:flex; justify-content:space-between; gap:30px; margin-top:20px; }
+.buyer-section{ flex:1; }
+.buyer-label{ background:#e5e5e5; padding:8px 12px; font-weight:bold; font-size:12px; }
+.buyer-content{ padding:12px; border:1px solid #ddd; border-top:none; font-size:11px; line-height:1.6; }
+.offer-meta{ width:280px; }
+.offer-meta table{ width:100%; border-collapse:collapse; font-size:11px; }
+.offer-meta th{ background:#e5e5e5; padding:8px; text-align:right; font-weight:bold; border:1px solid #ddd; }
+.offer-meta td{ padding:8px; text-align:right; border:1px solid #ddd; }
+.prod-table{ width:100%; margin-top:25px; border-collapse:collapse; font-size:11px; }
+.prod-table th{ background:#e5e5e5; padding:8px 6px; text-align:left; border:1px solid #000; }
+.prod-table th:nth-child(1){ width:35px; text-align:center; }
+.prod-table th:nth-child(2){ width:60px; text-align:center; }
+.prod-table th:nth-child(5), .prod-table th:nth-child(6), .prod-table th:nth-child(7), .prod-table th:nth-child(8), .prod-table th:nth-child(9){ text-align:right; }
+.prod-table td{ padding:8px 6px; border:1px solid #000; }
+.prod-table td:nth-child(1), .prod-table td:nth-child(6), .prod-table td:nth-child(7){ text-align:center; }
+.prod-table td:nth-child(8), .prod-table td:nth-child(9){ text-align:right; }
+.prod-photo{ width:50px; height:50px; object-fit:cover; }
+.bottom-section{ margin-top:25px; display:flex; justify-content:space-between; gap:30px; }
+.packing{ flex:1; padding:12px; border:1px solid #000; }
+.packing-title{ font-weight:bold; margin-bottom:8px; }
+.delivery-block{ width:220px; padding:12px; border:1px solid #000; font-size:11px; }
+.delivery-block div{ margin-bottom:6px; }
+.notes-section{ margin-top:15px; padding:12px; border:1px solid #000; }
+.notes-title{ font-weight:bold; margin-bottom:8px; }
+.footer{ margin-top:50px; display:flex; justify-content:flex-end; }
+.sign-area{ text-align:right; font-size:10px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<div class="top">
+    <div class="logo-area">
+        <div class="logo">SEYMOL<br>ORIGINAL</div>
+        <div class="logo" style="width:80px; height:50px; border-radius:4px;">DPI</div>
+    </div>
+    <div class="company-info">
+        <div class="company-name">SEYMOT OTOMOTIV IC VE DIS TIC. SAN. LTD. STI.</div>
+        <div>Buyukkayacik Mh. 506 Nolu Sk. No: 4/1 Selcuklu Konya/Turkiye</div>
+        <div>Tel: +90 332 342 49 27 Mail: export@doganpiston.com.tr</div>
+        <div>Tax Office: SELCUK | https://doganpiston.com/en</div>
+    </div>
+</div>
+
+<div class="title-box">
+    <h1>PRICE OFFER</h1>
+</div>
+
+<div class="main-grid">
+    <div class="buyer-section">
+        <div class="buyer-label">BUYER / CLIENT</div>
+        <div class="buyer-content">
+            <strong>{{customer.firmName}}</strong><br>
+            {{customer.address}}<br>
+            {{customer.country}}<br>
+            {{#if customer.phone}}{{customer.phone}}{{/if}}{{#if customer.mail}} {{customer.mail}}{{/if}}
+        </div>
+    </div>
+    <div class="offer-meta">
+        <table>
+            <tr><th>Price Offer No</th><td>{{priceInfo.quoteNumber}}</td></tr>
+            <tr><th>Date</th><td>{{formattedDate}}</td></tr>
+            <tr><th>Country Of Destination</th><td>{{destinationCountry}}</td></tr>
+            <tr><th>Validity Date</th><td>{{formattedValidUntil}}</td></tr>
+        </table>
+    </div>
+</div>
+
+<table class="prod-table">
+<thead>
+<tr>
+    <th>No</th>
+    <th>Photo</th>
+    <th>Description</th>
+    <th>OEM No</th>
+    <th>DPI No</th>
+    <th>Quantity</th>
+    <th>Unit</th>
+    <th>Unit Price</th>
+    <th>Total</th>
+</tr>
+</thead>
+<tbody>
+{{#each products}}
+<tr>
+    <td>{{addOne @index}}</td>
+    <td>{{#if photo}}<img class="prod-photo" src="{{photo}}" alt=""/>{{/if}}</td>
+    <td>{{name}}</td>
+    <td></td>
+    <td></td>
+    <td>{{quantity}}</td>
+    <td>{{unit}}</td>
+    <td>€ {{price}}</td>
+    <td>€ {{total}}</td>
+</tr>
+{{/each}}
+</tbody>
+</table>
+
+<div class="bottom-section">
+    <div class="packing">
+        <div class="packing-title">Packing Information:</div>
+        <div>All products will be packing one by one in carton packagings.</div>
+    </div>
+    <div class="delivery-block">
+        <div><strong>DELIVERY TERM:</strong> {{deliveryTerm}}</div>
+        <div><strong>HS CODE:</strong> 840991</div>
+        <div><strong>ORIGIN:</strong> TURKIYE</div>
+    </div>
+</div>
+
+<div class="notes-section">
+    <div class="notes-title">Notes:</div>
+    <div>{{notes}}</div>
+</div>
+
+<div class="footer">
+    <div class="sign-area">
+        <div class="logo" style="display:inline-block; margin-bottom:5px;">SEYMOL</div>
+        <div>SEYMOT OTOMOTIV IC VE DIS TIC. SAN. LTD. STI.</div>
+        <div>Authorized Signature</div>
+    </div>
+</div>
+
+</div>
+
+</body>
+</html>

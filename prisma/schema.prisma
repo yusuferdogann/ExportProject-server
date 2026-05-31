@@ -1,0 +1,1392 @@
+// ============================================================================
+//  Prisma schema for ihracattakip (EportProject)
+//  PostgreSQL paralel veritabani — MongoDB ile baglantisi yoktur.
+//  Her model legacyMongoId tasir; bu sayede Mongo -> PG veri migrasyonunda
+//  eski ObjectId hex string'leri korunur ve cross-reference yapilabilir.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+enum UserRole {
+  owner
+  foreign_trade_manager
+  general_manager
+  finance_manager
+  administrator
+  demo
+  employee
+}
+
+enum ApprovalStepStatus {
+  pending
+  approved
+  rejected
+}
+
+enum RoleAssignmentRoleType {
+  template
+  custom
+}
+
+enum RoleAssignmentRoleModel {
+  roletemplates
+  customroles
+}
+
+enum RoleAssignmentAction {
+  assigned
+  updated
+  removed
+}
+
+// MandatoryReport periodType: original TR (gunluk/haftalik/aylik); diakritik kaldirildi.
+enum MandatoryReportPeriod {
+  gunluk
+  haftalik
+  aylik
+}
+
+enum DocFlowStatus {
+  draft
+  pending_approval
+  approved
+  rejected
+  cancelled
+  archived
+}
+
+enum DocumentGenerationStatus {
+  pending
+  generated
+  failed
+}
+
+enum WorkOrderStatus {
+  pending
+  in_progress
+  done
+}
+
+enum WorkerNoteStatus {
+  open
+  in_progress
+  completed
+}
+
+// BankInfo.status TR: bekliyor / onaylandi / reddedildi / revize
+enum BankInfoStatus {
+  bekliyor
+  onaylandi
+  reddedildi
+  revize
+}
+
+// InterviewReminder unit TR: dakika/saat/gun/hafta/ay
+enum InterviewReminderUnit {
+  dakika
+  saat
+  gun
+  hafta
+  ay
+}
+
+enum MailAiOperation {
+  proofread
+  translate
+}
+
+enum ReportType {
+  employee
+  monthly
+  weekly
+  tracking
+}
+
+enum ChecklistLanguage {
+  tr
+  en
+}
+
+// ============================================================================
+//  CORE — Company / User / Role
+// ============================================================================
+
+model Company {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  name          String
+  slug          String   @unique
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users                     User[]
+  customers                 Customer[]
+  workers                   Worker[]
+  products                  Product[]
+  productDiscounts          ProductDiscount[]
+  customRoles               CustomRole[]
+  roleTemplates             RoleTemplate[]
+  bankInfos                 BankInfo[]
+  mailTemplates             MailTemplate[]
+  notifications             Notification[]
+  messages                  Message[]
+  reports                   Report[]
+  meetings                  Meeting[]
+  reminders                 Reminder[]
+  notes                     Note[]
+  proformas                 Proforma[]
+  invoices                  Invoice[]
+  checklists                Checklist[]
+  priceOffers               PriceOffer[]
+  workOrders                WorkOrder[]
+  facilityInfos             FacilityInfo[]
+  mandatoryReports          MandatoryReport[]
+  approvals                 Approval[]
+  roleAssignmentLogs        RoleAssignmentLog[]
+  potentialCustomerPackages PotentialCustomerPackage[]
+  mailAiUsageLogs           MailAiUsageLog[]
+  monthlyUsageMinutes       MonthlyUsageMinute[]
+  interviewReminderSettings     InterviewReminderSettings[]
+  customerRatingFollowUpSettings CustomerRatingFollowUpSetting[]
+  customerMailRuleSettings       CustomerMailRuleSetting[]
+  workerNotes               WorkerNote[]
+  calendarEvents            CalendarEvent[]
+  mailAccounts              MailAccount[]
+  mailThreads                 MailThread[]
+  mailMessages                MailMessage[]
+  mailSyncEvents              MailSyncEvent[]
+
+  @@map("companies")
+}
+
+model RoleTemplate {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  name          String
+  description   String   @default("")
+  permissions   String[] @default([])
+  isSystem      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  users               User[]
+  roleAssignmentLogs  RoleAssignmentLog[]
+
+  @@unique([companyId, name])
+  @@map("role_templates")
+}
+
+model CustomRole {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  name          String
+  permissions   String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdById String @db.Uuid
+  createdBy   User   @relation("CustomRoleCreator", fields: [createdById], references: [id])
+
+  // Many-to-many: assignedUserIds[] -> join table
+  assignedUsers CustomRoleUser[]
+
+  // 1-N (User.customRoleId): legacy "primary" custom role link.
+  primaryUsers       User[]              @relation("UserPrimaryCustomRole")
+  roleAssignmentLogs RoleAssignmentLog[]
+
+  @@unique([companyId, name])
+  @@map("custom_roles")
+}
+
+model CustomRoleUser {
+  id           String   @id @default(uuid()) @db.Uuid
+  customRoleId String   @db.Uuid
+  userId       String   @db.Uuid
+  assignedAt   DateTime @default(now())
+
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  user       User       @relation("CustomRoleAssignedUsers", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([customRoleId, userId])
+  @@map("custom_role_users")
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  email         String   @unique
+  username      String
+  password      String // bcrypt hash
+  role          UserRole @default(demo)
+  permissions   String[] @default([])
+  // null = sinirsiz (Mongo'da Infinity idi)
+  reportLimit   Int?
+  facilityLimit Int?
+  createdAt     DateTime @default(now())
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  roleTemplateId String?       @db.Uuid
+  roleTemplate   RoleTemplate? @relation(fields: [roleTemplateId], references: [id])
+
+  customRoleId String?     @db.Uuid
+  customRole   CustomRole? @relation("UserPrimaryCustomRole", fields: [customRoleId], references: [id])
+
+  // Back-relations
+  workers                     Worker[]            @relation("WorkerOwner")
+  facilities                  Facility[]
+  productsCreated             Product[]
+  productDiscounts            ProductDiscount[]
+  mailTemplatesCreated        MailTemplate[]
+  customRolesCreated          CustomRole[]        @relation("CustomRoleCreator")
+  customRolesAssigned         CustomRoleUser[]    @relation("CustomRoleAssignedUsers")
+  remindersCreated            Reminder[]          @relation("ReminderCreatedBy")
+  reportsSent                 Report[]            @relation("ReportSender")
+  reportsReviewed             Report[]            @relation("ReportReviewer")
+  workOrdersSent              WorkOrder[]         @relation("WorkOrderSender")
+  workOrdersReceived          WorkOrder[]         @relation("WorkOrderReceiver")
+  messagesSent                Message[]           @relation("MessageSender")
+  messagesReceived            Message[]           @relation("MessageReceiver")
+  notifications               Notification[]
+  approvalStepsAssigned       ApprovalStep[]      @relation("ApprovalStepAssigned")
+  approvalStepsActed          ApprovalStep[]      @relation("ApprovalStepAction")
+  approvalsCreated            Approval[]
+  approvalLogs                ApprovalLog[]
+  mandatoryReportsAsWorker    MandatoryReport[]
+  potentialCustomerPackages   PotentialCustomerPackage[]
+  mailAiUsageLogs             MailAiUsageLog[]
+  monthlyUsageMinutes         MonthlyUsageMinute[]
+  roleAssignmentLogsForTarget RoleAssignmentLog[] @relation("RAL_target")
+  roleAssignmentLogsPerformed RoleAssignmentLog[] @relation("RAL_performer")
+  usageLastPing               UsageLastPing?
+  scopeRows                   Scope[]
+  calendarEventsAssigned      CalendarEvent[]     @relation("CalendarEventAssignedTo")
+  mailAccounts                MailAccount[]
+  workerNotes                 WorkerNote[]
+
+  @@map("users")
+}
+
+// ============================================================================
+//  WORKER / CUSTOMER / FACILITY
+// ============================================================================
+
+model Worker {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  name          String
+  title         String?
+  phone         String?
+  email         String?
+  avatar        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  userId String? @db.Uuid
+  user   User?   @relation("WorkerOwner", fields: [userId], references: [id])
+
+  parentId String?  @db.Uuid
+  parent   Worker?  @relation("WorkerHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Worker[] @relation("WorkerHierarchy")
+
+  @@map("workers")
+}
+
+model Customer {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  firmName      String
+  country       String?
+  address       String?
+  code          String?
+  phone         String?
+  mail          String?
+  website       String?
+  personName    String?
+  personTitle   String?
+  saveDate      DateTime @default(now())
+  isActive      Boolean  @default(true)
+  rating        Float?   @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  products       Product[]
+  meetings       Meeting[]
+  reminders      Reminder[]
+  notes          Note[]
+  proformas      Proforma[]
+  invoices       Invoice[]
+  checklists     Checklist[]
+  priceOffers    PriceOffer[]
+  workerNotes    WorkerNote[]
+  calendarEvents CalendarEvent[]
+
+  @@map("customers")
+}
+
+model Facility {
+  id            String  @id @default(uuid()) @db.Uuid
+  legacyMongoId String? @unique
+  city          String
+  country       String
+  employeecount String?
+  facilityname  String
+  company_logo  String  @default("default.jpg")
+  state         String
+  totalarea     String
+  latitude      String
+  longitude     String
+  CityCode      String
+  FieldActivity String
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  facilityInfos FacilityInfo[]
+
+  @@map("facilities")
+}
+
+model FacilityInfo {
+  id              String  @id @default(uuid()) @db.Uuid
+  legacyMongoId   String? @unique
+  companyName     String?
+  cknNumber       String?
+  companyNumber   String?
+  companyMail     String?
+  companyWebsite  String?
+  fieldActivity   String?
+  closeArea       String?
+  openArea        String?
+  workerCount     String?
+  totalArea       String?
+  address         String?
+  companyLogo     String  @default("")
+
+  companyId String  @unique @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  facilityId String?   @db.Uuid
+  facility   Facility? @relation(fields: [facilityId], references: [id])
+
+  @@map("facility_info")
+}
+
+// ============================================================================
+//  PRODUCT / DISCOUNT
+// ============================================================================
+
+model Product {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  code          String
+  name          String
+  type          String?
+  unit          String   @default("Adet")
+  defaultPrice  Float
+  tenantId      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String?   @db.Uuid
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  createdById String? @db.Uuid
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  productDiscounts ProductDiscount[]
+
+  @@unique([companyId, code])
+  @@map("products")
+}
+
+model ProductDiscount {
+  id              String   @id @default(uuid()) @db.Uuid
+  legacyMongoId   String?  @unique
+  productName     String?
+  productType     String?
+  discountPercent Float
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  productId String  @db.Uuid
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([companyId, productId, userId])
+  @@map("product_discounts")
+}
+
+// ============================================================================
+//  BANK / MAIL TEMPLATE / NOTIFICATION / MESSAGE
+// ============================================================================
+
+model BankInfo {
+  id            String         @id @default(uuid()) @db.Uuid
+  legacyMongoId String?        @unique
+  bankName      String
+  sube          String?
+  switch        String? // SWIFT
+  iban          String
+  status        BankInfoStatus @default(bekliyor)
+  accountHolder String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("bank_info")
+}
+
+model MailTemplate {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  name          String
+  subject       String   @default("")
+  body          String   @default("")
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdById String? @db.Uuid
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  @@index([companyId, order])
+  @@map("mail_templates")
+}
+
+model Notification {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  title         String
+  description   String
+  isRead        Boolean  @default(false)
+  type          String   @default("info")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Message {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  content       String
+  isRead        Boolean  @default(false)
+  label         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  senderId String @db.Uuid
+  sender   User   @relation("MessageSender", fields: [senderId], references: [id])
+
+  receiverId String @db.Uuid
+  receiver   User   @relation("MessageReceiver", fields: [receiverId], references: [id])
+
+  @@map("messages")
+}
+
+// ============================================================================
+//  REPORT / MEETING / REMINDER / NOTE
+// ============================================================================
+
+model Report {
+  id            String     @id @default(uuid()) @db.Uuid
+  legacyMongoId String?    @unique
+  tenantId      String?
+  type          ReportType
+  reportNo      String
+  reportType    String
+  sender        String?
+  senderRole    String?
+  periodStart   DateTime?
+  periodEnd     DateTime?
+  reportPeriod  String?
+  status        String     @default("Hazir")
+  reviewer      String?
+  reviewDate    DateTime?
+  viewStatus    String     @default("Gorulmedi")
+  fileType      String     @default("PDF")
+  fileUrl       String?
+  title         String?
+  contentHTML   String     @default("")
+  images        String[]   @default([])
+  meta          Json       @default("{}")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  senderId String? @db.Uuid
+  senderUser User? @relation("ReportSender", fields: [senderId], references: [id])
+
+  reviewerId   String? @db.Uuid
+  reviewerUser User?   @relation("ReportReviewer", fields: [reviewerId], references: [id])
+
+  @@unique([companyId, reportNo])
+  @@index([companyId, type, createdAt(sort: Desc)])
+  @@map("reports")
+}
+
+model Meeting {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  firmName      String
+  mail          String?
+  phone         String?
+  status        String
+  title         String   @default("")
+  meetDate      DateTime?
+  noteDetail    String   @default("")
+  recordDate    DateTime @default(now())
+  lastMailMessageId String?   @db.Uuid
+  lastMailSubject   String?
+  lastMailSentAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  @@map("meetings")
+}
+
+model Reminder {
+  id               String   @id @default(uuid()) @db.Uuid
+  legacyMongoId    String?  @unique
+  title            String
+  description      String   @default("")
+  date             DateTime
+  time             String
+  notificationSent Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdById String? @db.Uuid
+  createdBy   User?   @relation("ReminderCreatedBy", fields: [createdById], references: [id])
+
+  @@map("reminders")
+}
+
+model Note {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  title         String
+  description   String
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("notes")
+}
+
+// ============================================================================
+//  APPROVAL FLOW
+// ============================================================================
+
+model Approval {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  // entityType + entityId polymorphic; Prisma'da relation tutmuyoruz.
+  entityType    String
+  entityId      String // Mongo'daki referans icin hex ObjectId; PG'de UUID veya benzeri string olabilir
+  status        String   @default("pending")
+  currentStep   Int      @default(1)
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdById String @db.Uuid
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  steps        ApprovalStep[]
+  logs         ApprovalLog[]
+  proformas    Proforma[]
+  invoices     Invoice[]
+  checklists   Checklist[]
+  priceOffers  PriceOffer[]
+
+  @@index([entityType, entityId])
+  @@map("approvals")
+}
+
+model ApprovalStep {
+  id            String             @id @default(uuid()) @db.Uuid
+  legacyMongoId String?            @unique
+  stepOrder     Int
+  role          String
+  status        ApprovalStepStatus @default(pending)
+  actionAt      DateTime?
+  comment       String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  approvalId String   @db.Uuid
+  approval   Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+
+  assignedToId String? @db.Uuid
+  assignedTo   User?   @relation("ApprovalStepAssigned", fields: [assignedToId], references: [id])
+
+  actionById String? @db.Uuid
+  actionBy   User?   @relation("ApprovalStepAction", fields: [actionById], references: [id])
+
+  logs ApprovalLog[]
+
+  @@map("approval_steps")
+}
+
+model ApprovalLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  action        String
+  comment       String?
+  createdAt     DateTime @default(now())
+
+  approvalId String   @db.Uuid
+  approval   Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+
+  stepId String?       @db.Uuid
+  step   ApprovalStep? @relation(fields: [stepId], references: [id])
+
+  userId String? @db.Uuid
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@map("approval_logs")
+}
+
+// ============================================================================
+//  DOCUMENT FLOW — Proforma / Invoice / Checklist / PriceOffer
+//  Not: bank/products/document gibi embedded subdoc'lar Json olarak saklanir.
+// ============================================================================
+
+model Proforma {
+  id                String        @id @default(uuid()) @db.Uuid
+  legacyMongoId     String?       @unique
+  quoteNumber       String
+  invoiceDate       DateTime
+  validUntil        DateTime
+  originCountry     String?
+  gtipCode          String?
+  note              String?
+  totalNetWeight    Float         @default(0)
+  totalGrossWeight  Float         @default(0)
+  totalPackageCount Int           @default(0)
+  status            DocFlowStatus @default(draft)
+  submittedAt       DateTime?
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  // Json: delivery { type, vehicle, point }, bankInfo { name, branch, swiftCode, iban }, document { public_id, secure_url, resource_type }
+  delivery          Json?
+  bankInfo          Json?
+  document          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  approvalId String?   @db.Uuid
+  approval   Approval? @relation(fields: [approvalId], references: [id])
+
+  @@map("proformas")
+}
+
+model Invoice {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  legacyMongoId      String?                  @unique
+  invoiceNo          String
+  invoiceDate        DateTime
+  delivery           String?
+  destinationCountry String?
+  gtip               String?
+  // Json: bank { name, branch, swift, iban }, products [{description,quantity,unit,unitPrice,total}], document { public_id, secure_url, asset_id, version, resource_type }
+  bank               Json?
+  products           Json?
+  document           Json?
+  totalAmount        Float                    @default(0)
+  status             DocFlowStatus            @default(draft)
+  documentStatus     DocumentGenerationStatus @default(pending)
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  isDeleted          Boolean                  @default(false)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  approvalId String?   @db.Uuid
+  approval   Approval? @relation(fields: [approvalId], references: [id])
+
+  @@unique([companyId, invoiceNo])
+  @@map("invoices")
+}
+
+model Checklist {
+  id                String            @id @default(uuid()) @db.Uuid
+  legacyMongoId     String?           @unique
+  invoiceNumber     String
+  truckPlate        String?
+  invoiceDate       DateTime?
+  gtipCode          String?
+  originCountry     String?
+  masterPackageUnit String?
+  grandTotalKgs     Float?
+  sellerName        String?
+  sellerAddress     String?
+  sellerPhone       String?
+  sellerEmail       String?
+  sellerTaxId       String?
+  sellerTaxOffice   String?
+  sellerWebsite     String?
+  customerAddress   String?
+  customerEmail     String?
+  customerPhone     String?
+  note              String?
+  // Json: products [{code,name,master,qty,net,gross,price}], document { public_id, secure_url, resource_type }
+  products          Json?
+  document          Json?
+  totalPrice        Float             @default(0)
+  totalNetWeight    Float             @default(0)
+  totalGrossWeight  Float             @default(0)
+  totalPackageCount Int               @default(0)
+  status            DocFlowStatus     @default(draft)
+  submittedAt       DateTime?
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  language          ChecklistLanguage @default(tr)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String?   @db.Uuid
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  approvalId String?   @db.Uuid
+  approval   Approval? @relation(fields: [approvalId], references: [id])
+
+  @@map("checklists")
+}
+
+model PriceOffer {
+  id                 String        @id @default(uuid()) @db.Uuid
+  legacyMongoId      String?       @unique
+  destinationCountry String
+  // Json: products [{name,unit,quantity,price,photo,total}], delivery { type, vehicle, point }, priceInfo { quoteNumber, invoiceDate, validUntil }, document { public_id, secure_url, resource_type }
+  products           Json?
+  delivery           Json?
+  priceInfo          Json?
+  document           Json?
+  status             DocFlowStatus @default(draft)
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  approvalId String?   @db.Uuid
+  approval   Approval? @relation(fields: [approvalId], references: [id])
+
+  @@map("price_offers")
+}
+
+// ============================================================================
+//  WORK ORDER / WORKER NOTE / CALENDAR
+// ============================================================================
+
+model WorkOrder {
+  id            String          @id @default(uuid()) @db.Uuid
+  legacyMongoId String?         @unique
+  title         String
+  content       String
+  status        WorkOrderStatus @default(pending)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  senderId String @db.Uuid
+  sender   User   @relation("WorkOrderSender", fields: [senderId], references: [id])
+
+  receiverId String @db.Uuid
+  receiver   User   @relation("WorkOrderReceiver", fields: [receiverId], references: [id])
+
+  @@map("work_orders")
+}
+
+model WorkerNote {
+  id            String           @id @default(uuid()) @db.Uuid
+  legacyMongoId String?          @unique
+  title         String
+  description   String
+  createdDate   DateTime         @default(now())
+  status        WorkerNoteStatus @default(open)
+  read          Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // tenantId Mongo'da ref:"Tenant" idi; PG'de Company'ye baglandi.
+  tenantId String  @db.Uuid
+  tenant   Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Dashboard kişisel notları — kullanıcıya bağlı (customerId opsiyonel)
+  userId String? @db.Uuid
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  customerId String?  @db.Uuid
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, userId])
+  @@map("worker_notes")
+}
+
+model CalendarEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  legacyMongoId    String?   @unique
+  title            String
+  description      String?
+  date             DateTime?
+  startDate        DateTime?
+  endDate          DateTime?
+  assignedToName   String?
+  creatorName      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // tenantId Mongo'da ref:"Tenant" idi; PG'de Company'ye baglandi.
+  tenantId String  @db.Uuid
+  tenant   Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Mongo legacy: customerId bazen userId tutulmuş — PG'de nullable yapıldı.
+  customerId String?   @db.Uuid
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  assignedToId String? @db.Uuid
+  assignedTo   User?   @relation("CalendarEventAssignedTo", fields: [assignedToId], references: [id])
+
+  @@map("calendar_events")
+}
+
+// ============================================================================
+//  ROLE ASSIGNMENT LOG  (polimorfik refPath -> 2 nullable FK)
+// ============================================================================
+
+model RoleAssignmentLog {
+  id            String                  @id @default(uuid()) @db.Uuid
+  legacyMongoId String?                 @unique
+  roleName      String
+  roleType      RoleAssignmentRoleType
+  roleModel     RoleAssignmentRoleModel
+  permissions   String[]                @default([])
+  action        RoleAssignmentAction    @default(assigned)
+  details       Json                    @default("{}")
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  targetUserId String @db.Uuid
+  targetUser   User   @relation("RAL_target", fields: [targetUserId], references: [id])
+
+  performedById String @db.Uuid
+  performedBy   User   @relation("RAL_performer", fields: [performedById], references: [id])
+
+  roleTemplateId String?       @db.Uuid
+  roleTemplate   RoleTemplate? @relation(fields: [roleTemplateId], references: [id])
+
+  customRoleId String?     @db.Uuid
+  customRole   CustomRole? @relation(fields: [customRoleId], references: [id])
+
+  @@index([companyId, targetUserId, createdAt(sort: Desc)])
+  @@map("role_assignment_logs")
+}
+
+// ============================================================================
+//  USAGE / MANDATORY REPORT / POTENTIAL CUSTOMER
+// ============================================================================
+
+model PotentialCustomerPackage {
+  id              String   @id @default(uuid()) @db.Uuid
+  legacyMongoId   String?  @unique
+  sourceCatalogId String
+  catalogSnapshot Json
+  displayName     String   @default("")
+  managerNotes    String   @default("")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdById String @db.Uuid
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@map("potential_customer_packages")
+}
+
+model MailAiUsageLog {
+  id            String          @id @default(uuid()) @db.Uuid
+  legacyMongoId String?         @unique
+  operation     MailAiOperation
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@map("mail_ai_usage_logs")
+}
+
+model MonthlyUsageMinute {
+  id                String   @id @default(uuid()) @db.Uuid
+  legacyMongoId     String?  @unique
+  customerScopeKey  String   @default("_")
+  yearMonth         String
+  minutes           Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([companyId, userId, yearMonth, customerScopeKey])
+  @@map("monthly_usage_minutes")
+}
+
+model UsageLastPing {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  lastBeatAt    DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userId String @unique @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("usage_last_pings")
+}
+
+model MandatoryReport {
+  id            String                @id @default(uuid()) @db.Uuid
+  legacyMongoId String?               @unique
+  deadlineDate  DateTime
+  periodType    MandatoryReportPeriod @default(aylik)
+  periodMonth   Int?
+  periodYear    Int?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  workerId String @db.Uuid
+  worker   User   @relation(fields: [workerId], references: [id])
+
+  @@unique([companyId, workerId, periodYear, periodMonth])
+  @@map("mandatory_reports")
+}
+
+model InterviewReminderSettings {
+  id              String                @id @default(uuid()) @db.Uuid
+  legacyMongoId   String?               @unique
+  descriptionKey  String
+  value           Int
+  unit            InterviewReminderUnit
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, descriptionKey])
+  @@map("interview_reminder_settings")
+}
+
+enum CustomerMailRuleMode {
+  hatirlat
+  periyodik
+  hic
+}
+
+/// Müşteri puanına göre durum / takip hatırlatma süresi
+model CustomerRatingFollowUpSetting {
+  id        String                @id @default(uuid()) @db.Uuid
+  rating    Float
+  value     Int                   @default(1)
+  unit      InterviewReminderUnit @default(gun)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, rating])
+  @@map("customer_rating_followup_settings")
+}
+
+/// Müşteri puanına göre kurumsal mail kuralları
+model CustomerMailRuleSetting {
+  id        String                @id @default(uuid()) @db.Uuid
+  rating    Float
+  mode      CustomerMailRuleMode  @default(hatirlat)
+  value     Int                   @default(1)
+  unit      InterviewReminderUnit @default(hafta)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, rating])
+  @@map("customer_mail_rule_settings")
+}
+
+// ============================================================================
+//  SCOPE (eski "data" collection)
+//  scopes.js dosyasinda collection adi "data" idi; alanlar Turkce.
+// ============================================================================
+
+model Scope {
+  id            String   @id @default(uuid()) @db.Uuid
+  legacyMongoId String?  @unique
+  tarih         String?
+  title         String?
+  cartype       String?
+  subtitle      String?
+  situation     String?
+  sehir         String?
+  ulke          String?
+  ilce          String?
+  birim         String?
+  miktar        Float?
+  kaynak        String?
+  tesis         String?
+  type          String?
+  yakitturu     String?
+  plaka         String?
+  gasType       String?
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("scope_data")
+}
+
+// ============================================================================
+//  ENTERPRISE MAIL — event + cache + incremental sync (no polling)
+//  Gmail/Outlook webhook → queue event → worker → S3 + PG (+ OpenSearch later)
+// ============================================================================
+
+enum MailAccountProvider {
+  ses_domain
+  gmail
+  microsoft
+  yahoo
+  imap_custom
+}
+
+enum MailAccountStatus {
+  pending
+  active
+  error
+  disconnected
+}
+
+enum MailFolder {
+  inbox
+  sent
+  drafts
+  trash
+  archive
+  spam
+  other
+}
+
+enum MailSyncEventType {
+  gmail_push
+  microsoft_notification
+  ses_inbound
+  ses_bounce
+  manual_resync
+  send_request
+  send_completed
+  incremental_sync
+}
+
+enum MailSyncEventStatus {
+  pending
+  processing
+  done
+  failed
+  dead
+}
+
+/// Bagli posta hesabi: user@firma.com (SES) veya OAuth (Gmail/Outlook/…)
+model MailAccount {
+  id            String              @id @default(uuid()) @db.Uuid
+  emailAddress  String
+  displayName   String?
+  provider      MailAccountProvider
+  status        MailAccountStatus   @default(pending)
+  isDefault     Boolean             @default(false)
+  /// OAuth tokenlari uygulama katmaninda sifrelenmis JSON olarak saklanir
+  credentials   Json?
+  /// Incremental sync cursor (provider-specific)
+  gmailHistoryId       String?
+  microsoftDeltaLink   String? @db.Text
+  microsoftSubscriptionId String?
+  sesIdentityArn       String?
+  lastSyncAt           DateTime?
+  lastSyncError        String? @db.Text
+  webhookExpiresAt     DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  threads       MailThread[]
+  messages      MailMessage[]
+  syncEvents    MailSyncEvent[]
+  subscriptions MailWebhookSubscription[]
+
+  @@unique([userId, emailAddress])
+  @@index([companyId, status])
+  @@map("mail_accounts")
+}
+
+model MailThread {
+  id               String    @id @default(uuid()) @db.Uuid
+  providerThreadId String?
+  subject          String?
+  snippet          String?   @db.Text
+  participantEmails String[] @default([])
+  lastMessageAt    DateTime?
+  messageCount     Int       @default(0)
+  labels           String[]  @default([])
+  isRead           Boolean   @default(false)
+  isStarred        Boolean   @default(false)
+  isArchived       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  mailAccountId String      @db.Uuid
+  mailAccount   MailAccount @relation(fields: [mailAccountId], references: [id], onDelete: Cascade)
+
+  messages MailMessage[]
+
+  @@unique([mailAccountId, providerThreadId])
+  @@index([mailAccountId, lastMessageAt(sort: Desc)])
+  @@map("mail_threads")
+}
+
+model MailMessage {
+  id                String     @id @default(uuid()) @db.Uuid
+  providerMessageId String
+  folder            MailFolder @default(inbox)
+  fromEmail         String
+  fromName          String?
+  toEmails          String[]   @default([])
+  ccEmails          String[]   @default([])
+  bccEmails         String[]   @default([])
+  subject           String?
+  snippet           String?    @db.Text
+  bodyText          String?    @db.Text
+  bodyHtml          String?    @db.Text
+  /// Tam MIME / buyuk HTML S3'te; burada sadece key
+  s3RawKey          String?
+  s3BodyHtmlKey     String?
+  hasAttachments    Boolean    @default(false)
+  isRead            Boolean    @default(false)
+  isDraft           Boolean    @default(false)
+  isOutbound        Boolean    @default(false)
+  sentAt            DateTime?
+  receivedAt        DateTime?
+  headers           Json?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  mailAccountId String      @db.Uuid
+  mailAccount   MailAccount @relation(fields: [mailAccountId], references: [id], onDelete: Cascade)
+
+  threadId String?     @db.Uuid
+  thread   MailThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  attachments MailAttachment[]
+
+  @@unique([mailAccountId, providerMessageId])
+  @@index([mailAccountId, folder, receivedAt(sort: Desc)])
+  @@index([threadId])
+  @@map("mail_messages")
+}
+
+model MailAttachment {
+  id          String  @id @default(uuid()) @db.Uuid
+  filename    String
+  contentType String?
+  sizeBytes   Int?
+  s3Key       String
+  createdAt   DateTime @default(now())
+
+  messageId String      @db.Uuid
+  message   MailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("mail_attachments")
+}
+
+/// Webhook/push → DB queue (ileride SQS ile ayni payload)
+model MailSyncEvent {
+  id             String              @id @default(uuid()) @db.Uuid
+  type           MailSyncEventType
+  status         MailSyncEventStatus @default(pending)
+  idempotencyKey String              @unique
+  payload        Json                @default("{}")
+  attempts       Int                 @default(0)
+  lastError      String?             @db.Text
+  scheduledAt    DateTime            @default(now())
+  processedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  mailAccountId String?      @db.Uuid
+  mailAccount   MailAccount? @relation(fields: [mailAccountId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([mailAccountId, type])
+  @@map("mail_sync_events")
+}
+
+model MailWebhookSubscription {
+  id              String   @id @default(uuid()) @db.Uuid
+  provider        MailAccountProvider
+  externalSubId   String
+  resourceId      String?
+  expiresAt       DateTime?
+  clientState     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  mailAccountId String      @db.Uuid
+  mailAccount   MailAccount @relation(fields: [mailAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([mailAccountId, provider, externalSubId])
+  @@map("mail_webhook_subscriptions")
+}
+
+/// OAuth CSRF state (sunucu restart sonrasi da gecerli)
+model MailOAuthState {
+  state      String              @id
+  userId     String              @db.Uuid
+  companyId  String              @db.Uuid
+  provider   MailAccountProvider
+  returnPath String              @default("/settings/email-accounts")
+  expiresAt  DateTime
+  createdAt  DateTime            @default(now())
+
+  @@index([expiresAt])
+  @@map("mail_oauth_states")
+}
