@@ -13,6 +13,8 @@ const {
   getOAuthStartUrl,
 } = require("../../../services/mail/providers");
 const { connectOAuthAccount } = require("../../../services/mail/oauth/connectAccount");
+const { connectImapAccount } = require("../../../services/mail/imap/connectImapAccount");
+const { defaultMailHosts } = require("../../../services/mail/imap/imapHelpers");
 const {
   isConsumerMailbox,
   repairUserMailAccounts,
@@ -23,7 +25,10 @@ const { notifyEnterpriseMailUpdated } = require("../../../services/mail/mailNoti
 const { runIncrementalSync } = require("../../../services/mail/sync");
 
 function shapeAccount(a) {
-  const supportsInboxSync = a.provider === "gmail" || a.provider === "microsoft";
+  const supportsInboxSync =
+    a.provider === "gmail" ||
+    a.provider === "microsoft" ||
+    a.provider === "imap_custom";
   return {
     id: a.id,
     emailAddress: a.emailAddress,
@@ -60,6 +65,7 @@ const listAccounts = asyncErrorWrapper(async (req, res) => {
       sesReady: providerConfigured("ses_domain"),
       gmailOAuthReady: providerConfigured("gmail"),
       microsoftOAuthReady: providerConfigured("microsoft"),
+      imapReady: providerConfigured("imap_custom"),
       s3Ready: Boolean(mailConfig.s3.bucket),
       gmailRedirectUri: oauth.gmailRedirectUri || null,
       microsoftRedirectUri: oauth.microsoftRedirectUri || null,
@@ -131,6 +137,60 @@ const registerSesDomainAccount = asyncErrorWrapper(async (req, res) => {
       ? "Hesap kaydedildi. SES identity dogrulamasi tamamlaninca aktif olacak."
       : "Hesap kaydedildi. SES bilgileri (.env) eklendiginde gonderim acilacak.",
   });
+});
+
+/** POST /api/pg/enterprise-mail/accounts/imap */
+const registerImapAccount = asyncErrorWrapper(async (req, res) => {
+  const userId = req.userPg?.id || req.user?.id;
+  const companyId = req.userPg?.companyId || req.user?.companyId;
+  const {
+    emailAddress,
+    password,
+    displayName,
+    imapHost,
+    imapPort,
+    smtpHost,
+    smtpPort,
+    imapSecure,
+    smtpSecure,
+  } = req.body || {};
+
+  try {
+    const account = await connectImapAccount({
+      userId,
+      companyId,
+      emailAddress,
+      password,
+      displayName,
+      imapHost,
+      imapPort,
+      smtpHost,
+      smtpPort,
+      imapSecure,
+      smtpSecure,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: shapeAccount(account),
+      message: "Kurumsal e-posta baglandi. Gelen ve giden posta senkronize ediliyor.",
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message || "IMAP baglantisi basarisiz",
+    });
+  }
+});
+
+/** GET /api/pg/enterprise-mail/accounts/imap/defaults?email=info@firma.com */
+const getImapDefaults = asyncErrorWrapper(async (req, res) => {
+  const email = String(req.query.email || "").trim().toLowerCase();
+  const domain = email.includes("@") ? email.split("@")[1] : "";
+  if (!domain) {
+    return res.status(400).json({ success: false, message: "email parametresi gerekli" });
+  }
+  res.json({ success: true, data: defaultMailHosts(domain) });
 });
 
 /** GET /api/pg/enterprise-mail/oauth/:provider/start */
@@ -328,7 +388,7 @@ const listThreads = asyncErrorWrapper(async (req, res) => {
   const accounts = await prisma.mailAccount.findMany({
     where: {
       userId,
-      provider: { in: ["gmail", "microsoft"] },
+      provider: { in: ["gmail", "microsoft", "imap_custom"] },
       status: "active",
     },
     select: { id: true },
@@ -511,14 +571,22 @@ const requestResync = asyncErrorWrapper(async (req, res) => {
 
   try {
     const result = await runIncrementalSync(account);
-    notifyEnterpriseMailUpdated({
-      userId: account.userId,
-      accountId: account.id,
-      folder: "inbox",
-      newMessages: result.newMessages,
-      reason: "manual_resync",
+    if (result.newMessages > 0) {
+      notifyEnterpriseMailUpdated({
+        userId: account.userId,
+        accountId: account.id,
+        folder: "inbox",
+        newMessages: result.newMessages,
+        reason: "manual_resync",
+      });
+    }
+    res.json({
+      success: true,
+      message:
+        result.newMessages > 0
+          ? `${result.newMessages} yeni posta senkronize edildi`
+          : "Gelen kutusu senkronize edildi",
     });
-    res.json({ success: true, message: "Gelen kutusu senkronize edildi" });
   } catch (err) {
     await prisma.mailAccount.update({
       where: { id: account.id },
@@ -580,6 +648,8 @@ const repairMailAccounts = asyncErrorWrapper(async (req, res) => {
 module.exports = {
   listAccounts,
   registerSesDomainAccount,
+  registerImapAccount,
+  getImapDefaults,
   oauthStart,
   oauthCallback,
   listMailbox,

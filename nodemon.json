@@ -1,0 +1,6 @@
+{
+  "watch": ["*.js", "routes", "controllers", "Middleware", "services", "config", "helpers", "models", "constants", "db"],
+  "ignore": ["node_modules/**", "prisma/migrations/**", "scripts/**", "*.test.js"],
+  "ext": "js,json",
+  "delay": 800
+}

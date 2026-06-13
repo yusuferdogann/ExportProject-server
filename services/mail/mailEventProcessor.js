@@ -18,8 +18,8 @@ function emitMailUpdate(account, result, event, folder) {
   const shouldNotify =
     result.newMessages > 0 ||
     source === "after_send" ||
-    event.type === "manual_resync" ||
-    event.payload?.reason === "oauth_connected";
+    event.payload?.reason === "oauth_connected" ||
+    event.payload?.reason === "imap_connected";
 
   if (!shouldNotify) return;
 
@@ -66,7 +66,8 @@ async function handleIncrementalSync(event) {
   const canSync =
     account.status === "active" ||
     event.type === "manual_resync" ||
-    event.payload?.reason === "oauth_connected";
+    event.payload?.reason === "oauth_connected" ||
+    event.payload?.reason === "imap_connected";
 
   if (!canSync && account.status !== "pending") return;
 

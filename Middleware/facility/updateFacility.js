@@ -1,4 +1,5 @@
 const asyncErrorWrapper = require("express-async-handler");
+const { canManageCompanyLogo, canEditFacilityInfo } = require("../../constants/roles");
 const Usermodels = require("../../models/User");
 const ScopeModel = require("../../models/scopes");
 const FacilityModel = require("../../models/facility");
@@ -230,6 +231,13 @@ const getOneFacility = asyncErrorWrapper(async (req, res, next) => {
 
 const imageUpload = asyncErrorWrapper(async (req, res, next) => {
   try {
+    if (!canManageCompanyLogo(req.user?.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Logo değiştirme yetkiniz yok",
+      });
+    }
+
     const companyId = req.user?.companyId;
     const { base64 } = req.body;
 
@@ -1082,6 +1090,13 @@ const DeletedScope = asyncErrorWrapper(async (req, res, next) => {
 });
 
 const FacilitySaveInfo = asyncErrorWrapper(async (req, res, next) => {
+  if (!canEditFacilityInfo(req.user?.role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Tesis bilgilerini güncelleme yetkiniz yok",
+    });
+  }
+
   const {
     companyName,
     cknNumber,
@@ -1169,6 +1184,13 @@ const GetFacilityInfo = asyncErrorWrapper(async (req, res, next) => {
 
 const FacilityUpdateInfo = asyncErrorWrapper(async (req, res, next) => {
   try {
+    if (!canEditFacilityInfo(req.user?.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Tesis bilgilerini güncelleme yetkiniz yok",
+      });
+    }
+
     const companyId = req.user?.companyId;
     if (!companyId) {
       return res.status(400).json({

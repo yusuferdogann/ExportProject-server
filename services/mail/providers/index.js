@@ -14,6 +14,8 @@ function providerConfigured(provider) {
       return Boolean(
         mailConfig.microsoft.clientId && mailConfig.microsoft.clientSecret
       );
+    case "imap_custom":
+      return true;
     default:
       return false;
   }

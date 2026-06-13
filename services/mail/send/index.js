@@ -2,6 +2,7 @@ const { getPrisma } = require("../../../db/prisma");
 const { sendViaSes } = require("./sesSend");
 const { sendViaGmail } = require("./gmailSend");
 const { sendViaMicrosoft } = require("./microsoftSend");
+const { sendViaImap } = require("./imapSend");
 
 async function sendOutboundMessage(account, draft) {
   const payload = {
@@ -31,6 +32,11 @@ async function sendOutboundMessage(account, draft) {
       await sendViaMicrosoft(account, payload);
       providerMessageId = `ms-${Date.now()}`;
       break;
+    case "imap_custom": {
+      const res = await sendViaImap(account, payload);
+      providerMessageId = res.id;
+      break;
+    }
     default:
       throw new Error(`Gonderim desteklenmiyor: ${account.provider}`);
   }

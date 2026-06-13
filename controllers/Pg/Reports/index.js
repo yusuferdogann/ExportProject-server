@@ -32,18 +32,7 @@ const getAllReports = asyncErrorWrapper(async (req, res, next) => {
 
   const isAdmin = isReportManagerRole(role);
 
-  let allowedSenderIds = [];
-  if (isAdmin) {
-    const workers = await prisma.worker.findMany({
-      where: { companyId, userId: { not: null } },
-      select: { userId: true },
-    });
-    const set = new Set();
-    set.add(userId);
-    workers.forEach((w) => w.userId && set.add(w.userId));
-    allowedSenderIds = [...set];
-    where.senderId = { in: allowedSenderIds };
-  } else {
+  if (!isAdmin) {
     where.senderId = userId;
   }
 

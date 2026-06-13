@@ -2,7 +2,6 @@ const asyncErrorWrapper = require("express-async-handler");
 const path = require("path");
 const mongoose = require("mongoose");
 const Report = require("../../models/Report");
-const Worker = require("../../models/Worker");
 const PDFDocument = require("pdfkit");
 const { isReportManagerRole } = require("../../constants/roles");
 
@@ -17,31 +16,27 @@ const toObjectId = (id) => {
 };
 
 // GET /api/reports?type=employee|monthly|weekly|tracking
-// Admin: altındaki tüm çalışanların raporları | Çalışan: sadece kendi raporları
+// Yönetici: şirketteki tüm raporlar | Çalışan: sadece kendi raporları
 const getAllReports = asyncErrorWrapper(async (req, res) => {
-  const { companyId, id: currentUserId, role } = req.user;
+  const { companyId, id: currentUserId, role, pgId } = req.user;
   const { type } = req.query;
 
-  const query = { companyId };
+  const resolvedCompanyId = toObjectId(companyId) || companyId;
+  const query = { companyId: resolvedCompanyId };
   if (type) query.type = type;
 
   const isAdmin = isReportManagerRole(role);
 
-  if (isAdmin) {
-    const workers = await Worker.find({ companyId }).select("userId").lean();
-    const subordinateUserIds = workers
-      .filter((w) => w.userId)
-      .map((w) => w.userId.toString());
-    const allowedSenderIds = [
-      currentUserId?.toString?.(),
-      ...new Set(subordinateUserIds),
-    ]
-      .filter(Boolean)
-      .map(toObjectId)
-      .filter(Boolean);
-    query.senderId = allowedSenderIds.length ? { $in: allowedSenderIds } : currentUserId;
-  } else {
-    query.senderId = toObjectId(currentUserId) || currentUserId;
+  if (!isAdmin) {
+    const senderCandidates = [
+      toObjectId(currentUserId),
+      currentUserId,
+      pgId,
+    ].filter(Boolean);
+    query.senderId =
+      senderCandidates.length > 1
+        ? { $in: senderCandidates }
+        : senderCandidates[0] || currentUserId;
   }
 
   const reports = await Report.find(query).sort({ createdAt: -1 }).lean();
@@ -66,7 +61,10 @@ const getReportById = asyncErrorWrapper(async (req, res) => {
 
   if (!isReportManagerRole(role)) {
     const sid = report.senderId?.toString?.();
-    if (!sid || sid !== currentUserId?.toString?.()) {
+    const ownerIds = new Set(
+      [currentUserId, req.user?.pgId].filter(Boolean).map(String)
+    );
+    if (!sid || !ownerIds.has(sid)) {
       return res.status(403).json({
         success: false,
         message: "Bu rapora erişim yetkiniz yok",
@@ -83,6 +81,7 @@ const getReportById = asyncErrorWrapper(async (req, res) => {
 // POST /api/reports  (manuel rapor oluşturma – çalışan raporları için kullanılabilir)
 const createReport = asyncErrorWrapper(async (req, res) => {
   const { companyId, id: userId } = req.user;
+  const resolvedCompanyId = toObjectId(companyId) || companyId;
   const {
     type,
     reportNo,
@@ -135,13 +134,13 @@ const createReport = asyncErrorWrapper(async (req, res) => {
   const finalReportType = reportType || autoTypeLabel;
 
   const report = await Report.create({
-    companyId,
+    companyId: resolvedCompanyId,
     tenantId,
     type: safeType,
     reportNo: finalReportNo,
     reportType: finalReportType,
-    senderId: userId,
-    sender: sender || req.user.name,
+    senderId: toObjectId(userId) || userId,
+    sender: sender || req.user.name || req.user.username,
     senderRole: senderRole || "",
     createdAt: createdAt || new Date(),
     periodStart,

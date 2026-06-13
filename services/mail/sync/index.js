@@ -1,5 +1,6 @@
 const { syncGmailIncremental } = require("./gmailSync");
 const { syncMicrosoftIncremental } = require("./microsoftSync");
+const { syncImapIncremental } = require("./imapSync");
 const { getPrisma } = require("../../../db/prisma");
 
 async function runIncrementalSync(account) {
@@ -14,6 +15,9 @@ async function runIncrementalSync(account) {
       break;
     case "microsoft":
       await syncMicrosoftIncremental(account);
+      break;
+    case "imap_custom":
+      await syncImapIncremental(account);
       break;
     case "ses_domain":
       return {

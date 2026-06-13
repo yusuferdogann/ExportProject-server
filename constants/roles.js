@@ -49,6 +49,16 @@ function isAuthorizationTreeAdmin(role) {
   );
 }
 
+const COMPANY_LOGO_MANAGER_ROLES = [ROLES.OWNER, ROLES.GENERAL_MANAGER];
+
+function canManageCompanyLogo(role) {
+  return COMPANY_LOGO_MANAGER_ROLES.includes(role);
+}
+
+function canEditFacilityInfo(role) {
+  return role !== ROLES.EMPLOYEE;
+}
+
 module.exports = {
   ROLES,
   ADMIN_PANEL_ROLES,
@@ -58,4 +68,7 @@ module.exports = {
   isCalendarCompanyAdmin,
   isReportManagerRole,
   isAuthorizationTreeAdmin,
+  COMPANY_LOGO_MANAGER_ROLES,
+  canManageCompanyLogo,
+  canEditFacilityInfo,
 };

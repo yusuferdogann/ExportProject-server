@@ -104,7 +104,7 @@ async function repairUserMailAccounts(prisma, userId, companyId) {
 
 async function enqueueSyncIfNeeded(prisma, account, companyId) {
   const { enqueueMailEvent, buildIdempotencyKey } = require("./mailEventQueue");
-  if (account.provider !== "gmail" && account.provider !== "microsoft") return;
+  if (account.provider !== "gmail" && account.provider !== "microsoft" && account.provider !== "imap_custom") return;
   const fresh = await prisma.mailAccount.findUnique({ where: { id: account.id } });
   if (!fresh || fresh.status !== "active") return;
   await enqueueMailEvent({
@@ -118,7 +118,9 @@ async function enqueueSyncIfNeeded(prisma, account, companyId) {
 
 module.exports = {
   CONSUMER_MAIL_DOMAINS,
+  emailDomain,
   isConsumerMailbox,
   hasOAuthCredentials,
+  inferProviderFromEmail,
   repairUserMailAccounts,
 };

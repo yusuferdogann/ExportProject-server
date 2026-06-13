@@ -7,6 +7,7 @@
 const express = require("express");
 const {
   createCustomer,
+  checkDuplicateCustomer,
   getCustomers,
   getOne,
   updateCustomer,
@@ -18,6 +19,7 @@ const router = express.Router();
 
 router.use(getAccessToRoutePg);
 router.post("/addcustomer", createCustomer);
+router.post("/check-duplicate", checkDuplicateCustomer);
 router.get("/", getCustomers);
 router.get("/:id", getOne);
 router.patch("/:id", updateCustomer);

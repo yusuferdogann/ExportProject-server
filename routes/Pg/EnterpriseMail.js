@@ -7,6 +7,8 @@ const { getAccessToRoutePg } = require("../../Middleware/Pg/auth");
 const {
   listAccounts,
   registerSesDomainAccount,
+  registerImapAccount,
+  getImapDefaults,
   oauthStart,
   oauthCallback,
   listMailbox,
@@ -37,6 +39,8 @@ router.use(getAccessToRoutePg);
 router.get("/accounts", listAccounts);
 router.post("/accounts/repair", repairMailAccounts);
 router.post("/accounts/ses-domain", registerSesDomainAccount);
+router.post("/accounts/imap", registerImapAccount);
+router.get("/accounts/imap/defaults", getImapDefaults);
 router.delete("/accounts/:id", deleteMailAccount);
 router.post("/accounts/:id/resync", requestResync);
 router.get("/oauth/:provider/start", oauthStart);

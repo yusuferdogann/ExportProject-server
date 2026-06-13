@@ -9,6 +9,11 @@
 const asyncErrorWrapper = require("express-async-handler");
 const { getPrisma } = require("../../../db/prisma");
 const CustomError = require("../../../helpers/error/CustomError");
+const {
+  hasDuplicateCheckFields,
+  customerMatchesDuplicate,
+  resolveRegisteredBy,
+} = require("../../../helpers/pg/customerDuplicate");
 
 function clampRating(value) {
   return Math.min(5, Math.max(0, Number(value) || 0));
@@ -40,8 +45,47 @@ function shape(c, ratingOverride) {
     isActive: c.isActive,
     rating,
     companyId: c.companyId,
+    createdByUserId: c.createdByUserId,
+    createdByName: c.createdByName,
+    registeredBy:
+      c.registeredBy ||
+      resolveRegisteredBy({
+        createdByName: c.createdByName,
+        createdByUser: c.createdByUser,
+      }),
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
+  };
+}
+
+async function findDuplicateCustomer(prisma, companyId, input, excludeId) {
+  if (!hasDuplicateCheckFields(input)) return null;
+
+  const customers = await prisma.customer.findMany({
+    where: { companyId },
+    select: {
+      id: true,
+      firmName: true,
+      phone: true,
+      mail: true,
+      website: true,
+      saveDate: true,
+      createdByName: true,
+      createdByUser: { select: { username: true } },
+    },
+  });
+
+  const match = customers.find(
+    (c) =>
+      c.id !== excludeId && customerMatchesDuplicate(c, input)
+  );
+  if (!match) return null;
+
+  return {
+    duplicate: true,
+    customerId: match.id,
+    registeredBy: resolveRegisteredBy(match),
+    saveDate: match.saveDate,
   };
 }
 
@@ -96,8 +140,27 @@ const createCustomer = asyncErrorWrapper(async (req, res, next) => {
     return next(new CustomError("Firma adi zorunludur", 400));
   }
 
+  const duplicate = await findDuplicateCustomer(prisma, companyId, {
+    firmName,
+    phone,
+    mail,
+    website,
+  });
+  if (duplicate) {
+    return next(
+      new CustomError(
+        `Bu müşteri ${duplicate.registeredBy} tarafından kayıt edilmiştir`,
+        409
+      )
+    );
+  }
+
   const initialRating =
     rating != null && rating !== "" ? clampRating(rating) : 0;
+
+  const createdByUserId = req.userPg?.id || req.user?.id || null;
+  const createdByName =
+    req.userPg?.username || req.user?.username || req.user?.name || null;
 
   const customer = await prisma.customer.create({
     data: {
@@ -112,6 +175,8 @@ const createCustomer = asyncErrorWrapper(async (req, res, next) => {
       personName: personName || null,
       personTitle: personTitle || null,
       saveDate: saveDate ? new Date(saveDate) : undefined,
+      createdByUserId,
+      createdByName,
     },
   });
 
@@ -123,6 +188,34 @@ const createCustomer = asyncErrorWrapper(async (req, res, next) => {
   }
 
   res.status(201).json({ success: true, data: shape(customer, savedRating) });
+});
+
+/** POST /api/pg/customer/check-duplicate */
+const checkDuplicateCustomer = asyncErrorWrapper(async (req, res, next) => {
+  const prisma = getPrisma();
+  const companyId = req.userPg?.companyId || req.user?.companyId;
+  if (!companyId) return next(new CustomError("Sirket bilgisi yok", 400));
+
+  const { firmName, phone, mail, website, excludeId } = req.body || {};
+
+  if (!hasDuplicateCheckFields({ firmName, phone, mail, website })) {
+    return res.status(200).json({
+      success: true,
+      data: { duplicate: false },
+    });
+  }
+
+  const duplicate = await findDuplicateCustomer(
+    prisma,
+    companyId,
+    { firmName, phone, mail, website },
+    excludeId ? String(excludeId).trim() : undefined
+  );
+
+  res.status(200).json({
+    success: true,
+    data: duplicate || { duplicate: false },
+  });
 });
 
 /** GET /api/pg/customer */
@@ -229,6 +322,7 @@ const deleteCustomer = asyncErrorWrapper(async (req, res, next) => {
 
 module.exports = {
   createCustomer,
+  checkDuplicateCustomer,
   getCustomers,
   getOne,
   updateCustomer,

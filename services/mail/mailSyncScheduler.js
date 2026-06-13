@@ -14,10 +14,47 @@ const SCHEDULER_INTERVAL_MS = Number(
 );
 const WATCH_RENEW_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const FALLBACK_MIN_SYNC_GAP_MS = 45_000;
+const IMAP_MIN_SYNC_GAP_MS = Number(
+  process.env.ENTERPRISE_MAIL_IMAP_SYNC_GAP_MS || 60_000
+);
 
 let schedulerTimer = null;
 let tickRunning = false;
 let lastWatchRenewAt = 0;
+
+async function syncAccountIfDue(account, minGapMs, reason) {
+  const last = account.lastSyncAt
+    ? new Date(account.lastSyncAt).getTime()
+    : 0;
+  if (last && Date.now() - last < minGapMs) return;
+
+  try {
+    const result = await runIncrementalSync(account);
+    if (result.newMessages > 0) {
+      notifyEnterpriseMailUpdated({
+        userId: account.userId,
+        accountId: account.id,
+        folder: "inbox",
+        newMessages: result.newMessages,
+        reason,
+      });
+    }
+  } catch (err) {
+    console.warn(`[mail-sync:${reason}]`, account.emailAddress, err.message);
+  }
+}
+
+/** IMAP push desteklemez — Pub/Sub olsa bile periyodik INBOX kontrolu zorunlu */
+async function pollImapAccounts() {
+  const prisma = getPrisma();
+  const accounts = await prisma.mailAccount.findMany({
+    where: { provider: "imap_custom", status: "active" },
+  });
+
+  for (const account of accounts) {
+    await syncAccountIfDue(account, IMAP_MIN_SYNC_GAP_MS, "imap_poll");
+  }
+}
 
 async function renewGmailWatches() {
   if (!mailConfig.gmail.pubsubTopic) return;
@@ -38,7 +75,7 @@ async function renewGmailWatches() {
   lastWatchRenewAt = Date.now();
 }
 
-/** Pub/Sub yoksa (local dev): arka planda kontrol, yalnizca yeni posta varsa bildir */
+/** Pub/Sub yoksa (local dev): Gmail/Outlook arka planda kontrol */
 async function fallbackInboxCheck() {
   if (mailConfig.gmail.pubsubTopic) return;
 
@@ -50,27 +87,8 @@ async function fallbackInboxCheck() {
     },
   });
 
-  const now = Date.now();
   for (const account of accounts) {
-    const last = account.lastSyncAt
-      ? new Date(account.lastSyncAt).getTime()
-      : 0;
-    if (last && now - last < FALLBACK_MIN_SYNC_GAP_MS) continue;
-
-    try {
-      const result = await runIncrementalSync(account);
-      if (result.newMessages > 0) {
-        notifyEnterpriseMailUpdated({
-          userId: account.userId,
-          accountId: account.id,
-          folder: "inbox",
-          newMessages: result.newMessages,
-          reason: "fallback_inbox_check",
-        });
-      }
-    } catch (err) {
-      console.warn("[mail-fallback-check]", account.emailAddress, err.message);
-    }
+    await syncAccountIfDue(account, FALLBACK_MIN_SYNC_GAP_MS, "fallback_inbox_check");
   }
 }
 
@@ -79,6 +97,7 @@ async function schedulerTick() {
   tickRunning = true;
   try {
     await renewGmailWatches();
+    await pollImapAccounts();
     await fallbackInboxCheck();
   } finally {
     tickRunning = false;
@@ -99,8 +118,8 @@ function startMailSyncScheduler() {
   });
 
   const mode = mailConfig.gmail.pubsubTopic
-    ? "push (Pub/Sub) + watch renew"
-    : "fallback inbox check (Pub/Sub yok)";
+    ? "IMAP poll + push (Pub/Sub) + watch renew"
+    : "IMAP poll + fallback inbox check (Pub/Sub yok)";
   console.info(`[mail-sync-scheduler] started — ${mode}, interval ${SCHEDULER_INTERVAL_MS}ms`);
 }
 
